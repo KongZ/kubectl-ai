@@ -38,6 +38,7 @@ import (
 	"github.com/GoogleCloudPlatform/kubectl-ai/pkg/tools"
 	"github.com/GoogleCloudPlatform/kubectl-ai/pkg/ui"
 	"github.com/GoogleCloudPlatform/kubectl-ai/pkg/ui/html"
+	"github.com/GoogleCloudPlatform/kubectl-ai/pkg/ui/slack"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -525,6 +526,11 @@ func RunRootCommand(ctx context.Context, opt Options, args []string) error {
 		}
 	case ui.UITypeTUI:
 		userInterface = ui.NewTUI(defaultAgent)
+	case ui.UITypeSlack:
+		userInterface, err = slack.NewSlackUI(agentManager, sessionManager, opt.ModelID, opt.ProviderID, opt.UIListenAddress)
+		if err != nil {
+			return fmt.Errorf("creating slack UI: %w", err)
+		}
 	default:
 		return fmt.Errorf("ui-type mode %q is not known", opt.UIType)
 	}

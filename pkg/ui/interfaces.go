@@ -36,12 +36,13 @@ const (
 	UITypeTerminal Type = "terminal"
 	UITypeWeb      Type = "web"
 	UITypeTUI      Type = "tui"
+	UITypeSlack    Type = "slack"
 )
 
 // Implement pflag.Value for UIType
 func (u *Type) Set(s string) error {
 	switch s {
-	case "terminal", "web", "tui":
+	case "terminal", "web", "tui", "slack":
 		*u = Type(s)
 		return nil
 	default:

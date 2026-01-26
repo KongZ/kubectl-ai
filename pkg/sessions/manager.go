@@ -50,7 +50,10 @@ func NewSessionManager(backend string) (*SessionManager, error) {
 func (sm *SessionManager) NewSession(meta Metadata) (*api.Session, error) {
 	suffix := fmt.Sprintf("%04d", rand.Intn(10000))
 	sessionID := time.Now().Format("20060102") + "-" + suffix
+	return sm.NewSessionWithID(sessionID, meta)
+}
 
+func (sm *SessionManager) NewSessionWithID(sessionID string, meta Metadata) (*api.Session, error) {
 	now := time.Now()
 	session := &api.Session{
 		ID:           sessionID,
