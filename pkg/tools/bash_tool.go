@@ -104,6 +104,13 @@ func (t *BashTool) Run(ctx context.Context, args map[string]any) (any, error) {
 		env = append(env, "KUBECONFIG="+kubeconfig)
 	}
 
+	// Append custom environment variables
+	if toolEnv, ok := ctx.Value(EnvKey).(map[string]string); ok {
+		for k, v := range toolEnv {
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
 	return ExecuteWithStreamingHandling(ctx, t.executor, command, workDir, env, DetectKubectlStreaming)
 }
 

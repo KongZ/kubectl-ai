@@ -103,6 +103,11 @@ func TestFormatForSlack(t *testing.T) {
 			input:    "Just plain text.",
 			expected: "Just plain text.",
 		},
+		{
+			name:     "table formatting",
+			input:    "Line 1\n| h1 | h2 |\n|---|---|\n| c1 | c2 |\nLine 5",
+			expected: "Line 1\n```\n| h1 | h2 |\n|---|---|\n| c1 | c2 |\n```\nLine 5",
+		},
 	}
 
 	for _, tt := range tests {
@@ -131,10 +136,11 @@ func TestIsComplexOrLong(t *testing.T) {
 			input:    strings.Repeat("a", 3001),
 			expected: true,
 		},
+		// Table detection removed from IsComplexOrLong for short tables
 		{
 			name:     "table detection",
 			input:    "| Name | Age |\n|---|---|\n| Foo | 20 |",
-			expected: true,
+			expected: false,
 		},
 		{
 			name:     "long code block",

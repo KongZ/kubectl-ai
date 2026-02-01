@@ -89,6 +89,8 @@ type UserChoiceResponse struct {
 
 type UserInputResponse struct {
 	Query string `json:"query"`
+	// EnvVars holds environment variables to be injected for this specific request
+	EnvVars map[string]string `json:"env_vars,omitempty"`
 }
 
 // MCPStatus represents the overall status of MCP servers and tools

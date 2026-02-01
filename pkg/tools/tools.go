@@ -39,6 +39,7 @@ const (
 	KubeconfigKey ContextKey = "kubeconfig"
 	WorkDirKey    ContextKey = "work_dir"
 	ExecutorKey   ContextKey = "executor"
+	EnvKey        ContextKey = "env"
 )
 
 func Lookup(name string) Tool {
@@ -176,6 +177,10 @@ type InvokeToolOptions struct {
 
 	// Executor is the executor for tool execution
 	Executor sandbox.Executor
+
+	// Env allows passing environment variables to the tool.
+	// These will be appended to the current process environment or sandbox environment.
+	Env map[string]string
 }
 
 type ToolRequestEvent struct {

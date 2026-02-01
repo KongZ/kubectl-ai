@@ -58,6 +58,9 @@ type Agent struct {
 	// If provided, the agent will run only once and then exit.
 	InitialQuery string
 
+	// AgentName is the name of the assistant.
+	AgentName string
+
 	// tool calls that are pending execution
 	// These will typically be all the tool calls suggested by the LLM in the
 	// previous iteration of the agentic loop.
@@ -132,6 +135,9 @@ type Agent struct {
 
 	// lastErr is the most recent error run into, for use across the stack
 	lastErr error
+
+	// EnvVars holds environment variables that should be passed to tools
+	EnvVars map[string]string
 
 	// cancel is the function to cancel the agent's context
 	cancel context.CancelFunc
@@ -289,6 +295,7 @@ func (s *Agent) Init(ctx context.Context) error {
 		EnableToolUseShim: s.EnableToolUseShim,
 		// RunOnce is a good proxy to indicate the agentic session is non-interactive mode.
 		SessionIsInteractive: !s.RunOnce,
+		AgentName:            s.AgentName,
 	})
 	if err != nil {
 		return fmt.Errorf("generating system prompt: %w", err)
@@ -463,8 +470,6 @@ func (c *Agent) Run(ctx context.Context, initialQuery string) error {
 						continue
 					}
 					c.addMessage(api.MessageSourceUser, api.MessageTypeText, query.Query)
-					// we don't need the agentic loop for meta queries
-					// for ex. model, tools, etc.
 					answer, handled, err := c.handleMetaQuery(ctx, query.Query)
 					if err != nil {
 						log.Error(err, "error handling meta query")
@@ -473,6 +478,13 @@ func (c *Agent) Run(ctx context.Context, initialQuery string) error {
 						c.addMessage(api.MessageSourceAgent, api.MessageTypeError, "Error: "+err.Error())
 						continue
 					}
+
+					// Update c.EnvVars with the one from the input for this turn
+					// This ensures thread safety as the loop processes one request at a time
+					c.sessionMu.Lock()
+					c.EnvVars = query.EnvVars
+					c.sessionMu.Unlock()
+
 					if handled {
 						// metaquery set the state to 'Exited', so we should exit
 						if c.AgentState() == api.AgentStateExited {
@@ -1048,6 +1060,7 @@ func (c *Agent) DispatchToolCalls(ctx context.Context) error {
 			Kubeconfig: c.Kubeconfig,
 			WorkDir:    c.workDir,
 			Executor:   c.executor,
+			Env:        c.EnvVars,
 		})
 
 		if err != nil {
@@ -1196,6 +1209,7 @@ type PromptData struct {
 
 	EnableToolUseShim    bool
 	SessionIsInteractive bool
+	AgentName            string
 }
 
 func (a *PromptData) ToolsAsJSON() string {

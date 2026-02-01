@@ -136,6 +136,9 @@ type Options struct {
 
 	// SandboxImage is the container image to use for the sandbox
 	SandboxImage string `json:"sandboxImage,omitempty"`
+
+	// AgentName is the name of the assistant.
+	AgentName string `json:"agentName,omitempty"`
 }
 
 var defaultToolConfigPaths = []string{
@@ -191,6 +194,7 @@ func (o *Options) InitDefaults() {
 
 	o.Sandbox = ""
 	o.SandboxImage = "bitnami/kubectl:latest"
+	o.AgentName = "kubectl-ai"
 }
 
 func (o *Options) LoadConfiguration(b []byte) error {
@@ -333,6 +337,8 @@ func (opt *Options) bindCLIFlags(f *pflag.FlagSet) error {
 	f.StringVar(&opt.Sandbox, "sandbox", opt.Sandbox, "execute tools in a sandbox environment (k8s, seatbelt)")
 	f.StringVar(&opt.SandboxImage, "sandbox-image", opt.SandboxImage, "container image to use for the sandbox")
 
+	f.StringVar(&opt.AgentName, "agent-name", opt.AgentName, "name of the assistant")
+
 	f.StringVar(&opt.ResumeSession, "resume-session", opt.ResumeSession, "ID of session to resume (use 'latest' for the most recent session)")
 	f.BoolVar(&opt.ListSessions, "list-sessions", opt.ListSessions, "list all available sessions")
 	f.StringVar(&opt.DeleteSession, "delete-session", opt.DeleteSession, "delete a session by ID")
@@ -453,6 +459,7 @@ func RunRootCommand(ctx context.Context, opt Options, args []string) error {
 			SessionBackend:     opt.SessionBackend,
 			RunOnce:            opt.Quiet,
 			InitialQuery:       queryFromCmd,
+			AgentName:          opt.AgentName,
 		}, nil
 	}
 

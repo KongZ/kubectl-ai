@@ -276,7 +276,27 @@ func (s *SlackUI) ensureAgentListener(a *agent.Agent) {
 				if text, ok := apiMsg.Payload.(string); ok && text != ">>>" {
 					s.postToSlack(channel, threadTS, text)
 				} else if choiceReq, ok := apiMsg.Payload.(*api.UserChoiceRequest); ok {
-					s.postToSlack(channel, threadTS, choiceReq.Prompt)
+					prompt := choiceReq.Prompt
+					// Attempt to identify and format command if it looks like one and isn't already formatted
+					// Common pattern: "I will run the following command: <command>"
+					// If the command is not in backticks, let's try to put it in a code block.
+					// A simple heuristic: if the prompt ends with a command like "kubectl ...", wrap it.
+					// Or just simpler: let formatForSlack handle detection if we improve it,
+					// OR explicitly look for "kubectl" commands here.
+
+					// Let's improve the formatting for specific patterns often used by the agent
+					if strings.Contains(prompt, "kubectl") && !strings.Contains(prompt, "```") && !strings.Contains(prompt, "`") {
+						// This is a naive heuristic but might help.
+						// Better: let's try to split by "command:" or similar keywords if present.
+						// Agent often says: "I will run the following command: kubectl get pods"
+						parts := strings.SplitN(prompt, "command:", 2)
+						if len(parts) == 2 {
+							pre := strings.TrimSpace(parts[0])
+							cmd := strings.TrimSpace(parts[1])
+							prompt = fmt.Sprintf("%s command:\n```%s```", pre, cmd)
+						}
+					}
+					s.postToSlack(channel, threadTS, prompt)
 				} else if errPayload, ok := apiMsg.Payload.(error); ok {
 					s.postToSlack(channel, threadTS, "Error: "+errPayload.Error())
 				}
@@ -331,6 +351,73 @@ func (s *SlackUI) uploadSnippet(channel, threadTS, text string) {
 func formatForSlack(text string) string {
 	// Simple Markdown to mrkdwn conversion
 
+	// 0. Tables: Detect Markdown tables and wrap them in code blocks
+	// Look for a block that has a separator line | --- |
+	if strings.Contains(text, "|") && strings.Contains(text, "---") {
+		// Identify lines that look like table rows
+		lines := strings.Split(text, "\n")
+		var newLines []string
+		inTable := false
+		tableBuffer := []string{}
+
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			isTableRow := strings.HasPrefix(trimmed, "|") || (strings.Contains(trimmed, "|") && len(strings.Split(trimmed, "|")) > 2)
+
+			if isTableRow {
+				if !inTable {
+					// Check if this is potentially the start of a table (header)
+					// But we only truly know it's a table if we see a separator later...
+					// This is tricky line-by-line.
+					// Alternative: Just detect blocks.
+					inTable = true
+				}
+				tableBuffer = append(tableBuffer, line)
+			} else {
+				if inTable {
+					// processing end of table
+					// Check if the buffer actually looked like a table (had a separator)
+					hasSeparator := false
+					for _, tl := range tableBuffer {
+						if strings.Contains(tl, "---") {
+							hasSeparator = true
+							break
+						}
+					}
+
+					if hasSeparator {
+						newLines = append(newLines, "```")
+						newLines = append(newLines, tableBuffer...)
+						newLines = append(newLines, "```")
+					} else {
+						newLines = append(newLines, tableBuffer...)
+					}
+					tableBuffer = []string{}
+					inTable = false
+				}
+				newLines = append(newLines, line)
+			}
+		}
+		// flush buffer
+		if len(tableBuffer) > 0 {
+			hasSeparator := false
+			for _, tl := range tableBuffer {
+				if strings.Contains(tl, "---") {
+					hasSeparator = true
+					break
+				}
+			}
+			if hasSeparator {
+				newLines = append(newLines, "```")
+				newLines = append(newLines, tableBuffer...)
+				newLines = append(newLines, "```")
+			} else {
+				newLines = append(newLines, tableBuffer...)
+			}
+		}
+		text = strings.Join(newLines, "\n")
+	}
+
 	// 1. Triple asterisks (Bold + Italic)
 	reBoldItalic := regexp.MustCompile(`\*\*\*(.*?)\*\*\*`)
 	text = reBoldItalic.ReplaceAllString(text, `*_${1}_*`)
@@ -356,10 +443,6 @@ func formatForSlack(text string) string {
 
 func isComplexOrLong(text string) bool {
 	if len(text) > 3000 {
-		return true
-	}
-	// Detect tables: usually start with | and have --- separator
-	if strings.Contains(text, "|") && strings.Contains(text, "---") {
 		return true
 	}
 	// Detect long code blocks
